@@ -106,6 +106,24 @@ function App() {
 
       <div className='header-overlay'>
         <h1>AI VTuber Motion Console</h1>
+        <div style={{ marginTop: '8px' }}>
+          <a
+            href='/voice'
+            style={{
+              pointerEvents: 'auto',
+              background: 'rgba(14,25,39,0.86)',
+              color: '#d9e8ff',
+              border: '1px solid rgba(170,196,219,0.32)',
+              borderRadius: '999px',
+              padding: '6px 12px',
+              textDecoration: 'none',
+              fontSize: '13px',
+              fontWeight: 700,
+            }}
+          >
+            进入 Gemini 语音页
+          </a>
+        </div>
         <div className='status-row'>
           <span className={debugState.modelReady ? 'ok' : 'warn'}>
             {debugState.modelReady ? 'Model: Ready' : 'Model: Loading'}

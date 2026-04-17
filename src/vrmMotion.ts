@@ -22,7 +22,7 @@ export interface MotionEvent {
 
 export interface DebugState {
   modelReady: boolean;
-  currentAction: ActionName;
+  currentAction: string;
   lastErrorCode: MotionEventCode | null;
   events: MotionEvent[];
 }

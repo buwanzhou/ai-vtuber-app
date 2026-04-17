@@ -42,12 +42,41 @@ npm run build
 - 显示最近 20 条事件
 - 包括动作开始、结束、拒绝、骨骼缺失、回正等
 
+## AI 调用接口（无需页面按钮）
+
+在运行时可直接通过全局方法调用动作系统：
+
+```js
+window.vrmAICommand({ type: 'gesture', gesture: 'wave' });
+window.vrmAICommand({ type: 'gesture', gesture: 'nod', durationSec: 1.4 });
+
+window.vrmAICommand({ type: 'locomotion', mode: 'inPlace', speed: 0.9 });
+window.vrmAICommand({ type: 'locomotion', mode: 'forward', speed: 1.0, turnRate: 0.4 });
+
+window.vrmAICommand({ type: 'stop' });
+```
+
+### 指令说明
+
+- `gesture`：离散手势动作
+  - `gesture` 可选：`wave`、`nod`、`shake`、`raiseLeftArm`
+  - `durationSec` 可选：该手势持续秒数
+- `locomotion`：连续机动层
+  - `mode` 可选：`idle`、`inPlace`、`forward`
+  - `speed` 可选：速度（内部会做安全夹取）
+  - `turnRate` 可选：转向角速度
+- `stop`：停止机动并回到待机
+
+当前动作系统采用分层更新（待机层 + 机动层 + 手势层），便于后续 AI 侧根据文本流、TTS、情绪结果做组合触发。
+
 ## 核心代码
 
 - src/vrmMotion.ts
   - 动作调度逻辑与流事件映射
+- src/vrmActionController.ts
+  - 分层动作控制器（待机、手势、机动/走路、AI 指令分发）
 - src/VrmViewer.tsx
-  - VRM 加载、骨骼驱动、调试事件发布
+  - VRM 加载、动作控制器接线、全局 AI 调用接口
 - src/App.tsx
   - 控制面板、文本流模拟、日志展示
 - src/vrmMotion.test.ts

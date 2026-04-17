@@ -1,0 +1,223 @@
+.voice-page {
+  min-height: 100vh;
+  padding: 24px;
+  color: #142437;
+  background:
+    radial-gradient(1200px 700px at 8% -10%, rgba(255, 222, 173, 0.44), transparent),
+    radial-gradient(1200px 800px at 92% 0%, rgba(173, 216, 255, 0.34), transparent),
+    linear-gradient(160deg, #f4f7ff 0%, #ecf5ff 52%, #fdf7ef 100%);
+}
+
+.voice-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+
+.voice-header h1 {
+  margin: 0;
+  font-size: clamp(1.4rem, 1.2rem + 1vw, 2.2rem);
+  letter-spacing: 0.02em;
+}
+
+.voice-header p {
+  margin: 8px 0 0;
+  color: #40546e;
+}
+
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 14px;
+  border-radius: 999px;
+  background: #11263f;
+  color: #fff;
+  text-decoration: none;
+  font-weight: 700;
+}
+
+.voice-config-card,
+.chat-card {
+  background: rgba(255, 255, 255, 0.86);
+  border: 1px solid rgba(17, 38, 63, 0.15);
+  border-radius: 16px;
+  padding: 16px;
+  box-shadow: 0 12px 26px rgba(30, 60, 96, 0.09);
+}
+
+.voice-config-card label {
+  font-weight: 700;
+}
+
+.voice-config-card p {
+  margin: 10px 0 0;
+  color: #61758f;
+  font-size: 0.88rem;
+}
+
+.api-row {
+  margin-top: 10px;
+  display: flex;
+  gap: 10px;
+}
+
+.api-row input {
+  flex: 1;
+  border: 1px solid #b8c8d8;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 0.95rem;
+}
+
+.api-row input[type='range'] {
+  padding: 0;
+  border: none;
+}
+
+.api-row select {
+  flex: 1;
+  border: 1px solid #b8c8d8;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 0.95rem;
+  background: #fff;
+}
+
+.api-row button,
+.input-row button,
+.mic-btn,
+.secondary-btn {
+  border: none;
+  border-radius: 10px;
+  padding: 10px 14px;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.api-row button,
+.input-row button,
+.mic-btn {
+  background: #1651d8;
+  color: #fff;
+}
+
+.secondary-btn {
+  background: #dbe7ff;
+  color: #1a3f8e;
+}
+
+.voice-controls {
+  margin: 14px 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.switch {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  color: #2f4f76;
+  font-weight: 600;
+}
+
+.interim-box,
+.error-box {
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+}
+
+.interim-box {
+  background: #f0f8ff;
+  color: #174a74;
+  border: 1px solid #b7d8f1;
+}
+
+.error-box {
+  background: #fff1f1;
+  color: #8f1e1e;
+  border: 1px solid #efb0b0;
+}
+
+.chat-card {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.messages {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 52vh;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.message {
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+
+.message header {
+  font-size: 0.76rem;
+  font-weight: 700;
+  margin-bottom: 6px;
+  opacity: 0.75;
+}
+
+.message p {
+  margin: 0;
+  white-space: pre-wrap;
+  line-height: 1.45;
+}
+
+.message.user {
+  background: #e8f0ff;
+  border: 1px solid #c4d6ff;
+}
+
+.message.assistant {
+  background: #f8f3e6;
+  border: 1px solid #f0dfb6;
+}
+
+.input-row {
+  display: flex;
+  gap: 10px;
+}
+
+.input-row textarea {
+  flex: 1;
+  border: 1px solid #b8c8d8;
+  border-radius: 10px;
+  padding: 10px 12px;
+  resize: vertical;
+  min-height: 66px;
+}
+
+@media (max-width: 840px) {
+  .voice-page {
+    padding: 14px;
+  }
+
+  .voice-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .api-row,
+  .input-row {
+    flex-direction: column;
+  }
+
+  .messages {
+    max-height: 44vh;
+  }
+}

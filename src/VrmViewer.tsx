@@ -3,7 +3,6 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { VRMLoaderPlugin, type VRM } from '@pixiv/three-vrm';
 import {
-  createMotionScheduler,
   mapStreamEventToAction,
   type ActionName,
   type DebugState,
@@ -11,6 +10,9 @@ import {
   type MotionEventCode,
   type StreamEventType,
 } from './vrmMotion';
+import { VrmActionController, type VrmAiCommand, type VrmGestureName } from './vrmActionController';
+
+type RuntimeActionName = ActionName | 'walkInPlace' | 'walkForward' | 'turnLeft' | 'turnRight' | 'stop';
 
 const VrmViewer: React.FC = () => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -22,10 +24,9 @@ const VrmViewer: React.FC = () => {
     let isDisposed = false;
     let frameHandle = 0;
 
-    const scheduler = createMotionScheduler();
+    const actionController = new VrmActionController();
     const allExpressions = ['happy', 'angry', 'sad', 'relaxed', 'surprised', 'neutral', 'blink'];
-    let elapsedSec = 0;
-    let lastBoneErrorAction: ActionName | null = null;
+    let currentActionName: RuntimeActionName = 'reset';
 
     let debugState: DebugState = {
       modelReady: false,
@@ -48,7 +49,7 @@ const VrmViewer: React.FC = () => {
       debugState = {
         ...debugState,
         events,
-        currentAction: scheduler.getCurrentAction(),
+        currentAction: currentActionName,
         lastErrorCode: code.includes('REJECTED') || code === 'MODEL_NOT_READY' || code === 'BONE_MISSING' ? code : debugState.lastErrorCode,
       };
       publishState();
@@ -94,6 +95,18 @@ const VrmViewer: React.FC = () => {
 
     window.currentVrm = null;
 
+    const setCurrentActionName = (actionName: RuntimeActionName) => {
+      if (currentActionName === actionName) {
+        return;
+      }
+      currentActionName = actionName;
+      debugState = {
+        ...debugState,
+        currentAction: currentActionName,
+      };
+      publishState();
+    };
+
     const frameCameraToModel = (vrm: VRM) => {
       const box = new THREE.Box3().setFromObject(vrm.scene);
       if (box.isEmpty()) {
@@ -116,7 +129,7 @@ const VrmViewer: React.FC = () => {
       camera.updateProjectionMatrix();
     };
 
-    const requestAction = (actionName: ActionName, source: 'manual' | 'stream') => {
+    const requestAction = (actionName: RuntimeActionName, source: 'manual' | 'stream' | 'ai') => {
       if (isDisposed) {
         return;
       }
@@ -126,25 +139,51 @@ const VrmViewer: React.FC = () => {
         return;
       }
 
-      const result = scheduler.requestAction(actionName, elapsedSec);
-      if (!result.accepted) {
-        pushEvent(result.code ?? 'ACTION_REJECTED_UNSUPPORTED', result.message ?? 'Action rejected', {
-          actionName,
-          source,
-        });
+      if (actionName === 'reset') {
+        actionController.reset();
+        setCurrentActionName('reset');
+        pushEvent('POSE_RESET', 'Pose reset', { source });
         return;
       }
 
-      if (actionName === 'reset' && vrm?.humanoid) {
-        vrm.humanoid.resetPose();
-        pushEvent('POSE_RESET', 'Pose reset', { source });
-      } else {
-        pushEvent('ACTION_STARTED', `Action started: ${actionName}`, { source });
+      if (actionName === 'stop') {
+        actionController.stopLocomotion();
+        setCurrentActionName('stop');
+        pushEvent('ACTION_FINISHED', 'Locomotion stopped', { source });
+        return;
       }
 
-      lastBoneErrorAction = null;
-      debugState = { ...debugState, currentAction: scheduler.getCurrentAction() };
-      publishState();
+      if (actionName === 'walkInPlace') {
+        actionController.setLocomotion('inPlace', 0.9, 0);
+        setCurrentActionName('walkInPlace');
+        pushEvent('ACTION_STARTED', 'Locomotion started: walkInPlace', { source });
+        return;
+      }
+
+      if (actionName === 'walkForward') {
+        actionController.setLocomotion('forward', 1.0, 0);
+        setCurrentActionName('walkForward');
+        pushEvent('ACTION_STARTED', 'Locomotion started: walkForward', { source });
+        return;
+      }
+
+      if (actionName === 'turnLeft') {
+        actionController.setLocomotion('forward', 0.7, 1.0);
+        setCurrentActionName('turnLeft');
+        pushEvent('ACTION_STARTED', 'Locomotion started: turnLeft', { source });
+        return;
+      }
+
+      if (actionName === 'turnRight') {
+        actionController.setLocomotion('forward', 0.7, -1.0);
+        setCurrentActionName('turnRight');
+        pushEvent('ACTION_STARTED', 'Locomotion started: turnRight', { source });
+        return;
+      }
+
+      actionController.triggerGesture(actionName as VrmGestureName);
+      setCurrentActionName(actionName);
+      pushEvent('ACTION_STARTED', `Action started: ${actionName}`, { source });
     };
 
     window.vrmExpression = (expressionName: string, value: number) => {
@@ -173,6 +212,31 @@ const VrmViewer: React.FC = () => {
       requestAction(action, 'stream');
     };
 
+    window.vrmAICommand = (command: VrmAiCommand) => {
+      if (!command || typeof command !== 'object') {
+        return;
+      }
+
+      actionController.dispatch(command);
+      if (command.type === 'gesture' && command.gesture) {
+        setCurrentActionName(command.gesture);
+        pushEvent('ACTION_STARTED', `AI gesture: ${command.gesture}`, { command });
+        return;
+      }
+
+      if (command.type === 'locomotion') {
+        const mode = command.mode ?? 'inPlace';
+        const actionName: RuntimeActionName =
+          mode === 'forward' ? 'walkForward' : mode === 'inPlace' ? 'walkInPlace' : 'stop';
+        setCurrentActionName(actionName);
+        pushEvent('ACTION_STARTED', `AI locomotion: ${mode}`, { command });
+        return;
+      }
+
+      setCurrentActionName('stop');
+      pushEvent('ACTION_FINISHED', 'AI command stop', { command });
+    };
+
     // 载入真实模型
     loader.load(
       '/model.vrm', // 模型路径
@@ -189,10 +253,8 @@ const VrmViewer: React.FC = () => {
         vrm.scene.position.set(0, 0, 0);
 
         frameCameraToModel(vrm);
-
-        if (vrm.humanoid) {
-          vrm.humanoid.resetPose();
-        }
+        actionController.bind(vrm);
+        setCurrentActionName('reset');
 
         debugState = {
           ...debugState,
@@ -232,70 +294,19 @@ const VrmViewer: React.FC = () => {
       const vrm = window.currentVrm as VRM | null;
       if (vrm) {
         const deltaTime = clock.getDelta();
-        elapsedSec += deltaTime;
+        actionController.update(deltaTime);
 
-        const activeAction = scheduler.getCurrentAction();
-        const actionTimeSec = scheduler.getActionTimeSec();
-
-        if (vrm.humanoid && activeAction !== 'reset') {
-          if (activeAction === 'wave') {
-            const rightUpperArm = vrm.humanoid.getNormalizedBoneNode('rightUpperArm');
-            const rightLowerArm = vrm.humanoid.getNormalizedBoneNode('rightLowerArm');
-            const rightHand = vrm.humanoid.getNormalizedBoneNode('rightHand');
-            
-            if (rightUpperArm && rightLowerArm) {
-              rightUpperArm.rotation.z = Math.PI / 3;
-              rightUpperArm.rotation.x = 0;
-              rightLowerArm.rotation.z = -Math.PI / 4;
-              rightLowerArm.rotation.x = Math.sin(actionTimeSec * Math.PI * 3) * 0.4;
-              if (rightHand) rightHand.rotation.z = -Math.PI / 8;
-            } else if (lastBoneErrorAction !== activeAction) {
-              pushEvent('BONE_MISSING', 'Wave bones missing: rightUpperArm/rightLowerArm', { action: activeAction });
-              lastBoneErrorAction = activeAction;
-              requestAction('reset', 'manual');
-            }
-          } 
-          else if (activeAction === 'nod') {
-            const neck = vrm.humanoid.getNormalizedBoneNode('neck');
-            const head = vrm.humanoid.getNormalizedBoneNode('head');
-            if (neck && head) {
-              neck.rotation.x = Math.sin(actionTimeSec * Math.PI * 2) * 0.15;
-              head.rotation.x = Math.sin(actionTimeSec * Math.PI * 2) * 0.1;
-            } else if (lastBoneErrorAction !== activeAction) {
-              pushEvent('BONE_MISSING', 'Nod bones missing: neck/head', { action: activeAction });
-              lastBoneErrorAction = activeAction;
-              requestAction('reset', 'manual');
-            }
-          }
-          else if (activeAction === 'shake') {
-            const neck = vrm.humanoid.getNormalizedBoneNode('neck');
-            const head = vrm.humanoid.getNormalizedBoneNode('head');
-            if (neck && head) {
-              neck.rotation.y = Math.sin(actionTimeSec * Math.PI * 2.5) * 0.15;
-              head.rotation.y = Math.sin(actionTimeSec * Math.PI * 2.5) * 0.1;
-            } else if (lastBoneErrorAction !== activeAction) {
-              pushEvent('BONE_MISSING', 'Shake bones missing: neck/head', { action: activeAction });
-              lastBoneErrorAction = activeAction;
-              requestAction('reset', 'manual');
-            }
-          }
-          else if (activeAction === 'raiseLeftArm') {
-            const leftUpperArm = vrm.humanoid.getNormalizedBoneNode('leftUpperArm');
-            if (leftUpperArm) {
-              leftUpperArm.rotation.z = -Math.PI / 2.5;
-            } else if (lastBoneErrorAction !== activeAction) {
-              pushEvent('BONE_MISSING', 'Raise-left-arm bone missing: leftUpperArm', { action: activeAction });
-              lastBoneErrorAction = activeAction;
-              requestAction('reset', 'manual');
-            }
-          }
-        }
-
-        const tickResult = scheduler.tick(deltaTime);
-        if (tickResult.shouldResetPose && vrm.humanoid) {
-          vrm.humanoid.resetPose();
-          pushEvent('ACTION_FINISHED', `Action finished: ${tickResult.finishedAction ?? 'unknown'}`);
-          pushEvent('POSE_RESET', 'Pose reset after action finish');
+        const snapshot = actionController.getSnapshot();
+        if (snapshot.activeGesture) {
+          setCurrentActionName(snapshot.activeGesture);
+        } else if (snapshot.locomotionMode === 'forward' && Math.abs(snapshot.turnRate) > 0.3) {
+          setCurrentActionName(snapshot.turnRate > 0 ? 'turnLeft' : 'turnRight');
+        } else if (snapshot.locomotionMode === 'forward') {
+          setCurrentActionName('walkForward');
+        } else if (snapshot.locomotionMode === 'inPlace') {
+          setCurrentActionName('walkInPlace');
+        } else if (currentActionName !== 'reset' && currentActionName !== 'stop') {
+          setCurrentActionName('reset');
         }
 
         vrm.update(deltaTime);
@@ -326,6 +337,8 @@ const VrmViewer: React.FC = () => {
       window.vrmExpression = undefined;
       window.vrmExpressionReset = undefined;
       window.vrmStreamEvent = undefined;
+      window.vrmAICommand = undefined;
+      actionController.unbind();
       if (renderer.domElement.parentElement) {
         renderer.domElement.parentElement.removeChild(renderer.domElement);
       }
